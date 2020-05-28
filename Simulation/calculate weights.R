@@ -1,3 +1,13 @@
+######This file is aimed at investigating whether our simulated weights 
+####is close to the theoretical weights
+#####we only need to compare the cov(digamma(y_imk+a_imk),digamma(y_ink+a_ink)).
+
+
+
+
+
+
+
 ###################################################
 ################function of generate the data #####
 ###################################################
@@ -92,7 +102,7 @@ time <- c(0,1)
 indiv_n<-100
 miss_n <- sample(10:15,indiv_n,replace = TRUE)
 b <- rexp(indiv_n, rate = 0.001)
-#b<- rep(0,indiv_n)
+
 simulate_data_new <- generate.data_function(time,indiv_n,b,20000)
 simulate_data_new$Capture.Number <- as.factor(simulate_data_new$time)
 simulate_data_new$individual<- as.factor(simulate_data_new$individual)
@@ -162,7 +172,7 @@ trysimulate_var_cov_matrix <- function(data,k){
   return(R0) 
 }
 
-trysimulate_var_cov_matrix(data,2)
+
 
 
 wights_theory_simulate_cov_ij1_ij2 <- function(j1,j2,data,k,subject){
@@ -231,5 +241,7 @@ wights_empirical_var_cov_ij1_ij2 <- function(data,k){
   }
   return(R0)
 }
-
+####simulation value of weights
+trysimulate_var_cov_matrix(data,2)
+#####theoretical value of weights
 wights_empirical_var_cov_ij1_ij2(data,2)
