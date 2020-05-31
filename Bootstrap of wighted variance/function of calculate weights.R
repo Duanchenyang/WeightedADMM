@@ -5,7 +5,7 @@ rep.col<-function(x,n){
   matrix(rep(x,each=n), ncol=n, byrow=TRUE)
 }
 
-doubletry_simulate_Rtrace_ij1_ij2 <- function(subject,j1,j2,data,B_0,nknots,order){
+doubletry_simulate_Rtrace_ij1_ij2 <- function(subject,j1,j2,data,B_0,nknots,order,simulate_data_new){
   a1 <- subset(data,Capture.Number==j1)$individual
   a2 <- subset(data,Capture.Number==j2)$individual
   time1 <- subset(data,Capture.Number==j1&individual==subject)$time
@@ -43,19 +43,19 @@ doubletry_simulate_Rtrace_ij1_ij2 <- function(subject,j1,j2,data,B_0,nknots,orde
 }
 
 
-doubleR0get <- function(simulate_data_new){
+doubleR0get <- function(simulate_data_new,B_0,nknots,order){
   
   nl <- nrow(simulate_data_new)
   R0 <- matrix(0,nl,nl)
   for (indexi in 1:nl){
-    print(indexi)
+    
     for(indexj in 1:nl){
       IDi <- simulate_data_new[indexi,]$individual
       IDj <- simulate_data_new[indexj,]$individual
       capturei <- simulate_data_new[indexi,]$Capture.Number
       capturej <- simulate_data_new[indexj,]$Capture.Number
       if(IDi==IDj){
-        R0[indexi,indexj]<- doubletry_simulate_Rtrace_ij1_ij2(IDi,capturei,capturej,simulate_data_new,B_0,nknots,order)
+        R0[indexi,indexj]<- doubletry_simulate_Rtrace_ij1_ij2(IDi,capturei,capturej,simulate_data_new,B_0,nknots,order,simulate_data_new)
       }
       
       else{
@@ -64,5 +64,6 @@ doubleR0get <- function(simulate_data_new){
       
     }
   }
+  print("finish")
   return(R0)
 }

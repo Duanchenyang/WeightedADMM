@@ -1,0 +1,11 @@
+qsub \
+ -N try \
+ -S /bin/bash \
+ -cwd \
+ -o try.out \
+ -j y \
+ -q all.q \
+ -pe orte 1 \
+ -V \
+ -t 1-100 \
+ -b y $PWD/try_run.sh

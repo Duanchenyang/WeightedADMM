@@ -36,7 +36,7 @@ prox_L2<- function(x,sigma){
 
 ######UPDATA B#################
 
-update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old){
+update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old,wij){
   m <- nrow(index)
   p <- nrow(V)
   B_new <- matrix(nrow=p,ncol=n)
@@ -45,7 +45,7 @@ update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old){
   eyemat_p <- diag(p)
   onemat_n <- ones(n)
   AtA <- kronecker(n*eyemat_n - onemat_n,eyemat_p)
-  Hs <- Hs(B_old,X,y)
+  Hs <- Hs(B_old,X,y,wij)
   invmat <- solve(-Hs+gamma1*diagD+theta*AtA)
   lv <- rep(0,n*p)
   for (l in 1:m){
@@ -58,7 +58,7 @@ update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old){
     Alt <- kronecker(e1-e2,eyemat_p)
     lv <- lv + Alt%*%V_tilde[,l]
   }
-  Grad_L <- Grad_L(B_old,X,y)
+  Grad_L <- Grad_L(B_old,X,y,wij)
   rhs <- Grad_L-t(as.vector(B_old)%*%Hs)+theta*lv
   b_new <- invmat%*%rhs
   B_new <- matrix(b_new,nrow=p,ncol=n)
@@ -68,7 +68,7 @@ update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old){
 #####calculate the gradient of beta############################
 ########B_old is beta(p,n) p=6,n=12,X is B-spline(256*6),y is (256*12)#####
 
-Grad_L <- function(B_old,X,y){
+Grad_L <- function(B_old,X,y,wij){
   Grad_l <- matrix(nrow=nrow(B_old),ncol = ncol(B_old))
   for(j in 1 :12){
     original1 <-(digamma(rowSums(exp(X%*%B_old)))-digamma(rowSums(y)+rowSums(exp(X%*%B_old))))*exp(X%*%B_old[,j])[,1]*X*wij
@@ -87,7 +87,7 @@ Grad_L <- function(B_old,X,y){
 #######################################################################
 
 
-Hs <-function(B_old,X,y){
+Hs <-function(B_old,X,y,wij){
   p <- nrow(B_old)
   n <- ncol(B_old)
   Hessian_diag <- matrix(nrow=p,ncol = n)
@@ -244,7 +244,7 @@ residual_dual <- function(V,V_old,index,n,theta){
 }
 
 #######ADMM###########
-prclust_admm <- function(X,y,diagD,B_0,index,gamma1,gamma2,theta,tau,n,p,max_iter,eps_abs,eps_rel){
+prclust_admm <- function(X,y,diagD,B_0,index,gamma1,gamma2,theta,tau,n,p,max_iter,eps_abs,eps_rel,wij){
   m <- nrow(index)
   V <- zeros(p,m)
   Lambda<- zeros(p,m)
@@ -255,7 +255,7 @@ prclust_admm <- function(X,y,diagD,B_0,index,gamma1,gamma2,theta,tau,n,p,max_ite
     V_old <- V
     Lambda_old <- Lambda
     B_old <- B_new
-    B_new <- update_B(X=X, diagD=diagD, y=y, V=V_old, Lambda=Lambda_old, n=n, gamma1=gamma1, index=index, theta=theta,Hs=Hs,B_old=B_new)
+    B_new <- update_B(X=X, diagD=diagD, y=y, V=V_old, Lambda=Lambda_old, n=n, gamma1=gamma1, index=index, theta=theta,Hs=Hs,B_old=B_new,wij)
     V <- update_V(B=B_new, Lambda=Lambda_old, gamma2=gamma2, theta=theta, tau=tau, index=index)
     Lambda <- update_Lambda(Lambda=Lambda_old,B=B_new,V=V,theta=theta,index=index)
     rp <- residual_primal(B=B_new,V= V, index=index)
