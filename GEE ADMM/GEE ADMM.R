@@ -16,13 +16,6 @@ create_adjacency <- function(V,n) {
   return(A)
 }
 
-rep.row<-function(x,n){
-  matrix(rep(x,each=n),nrow=n)
-}
-rep.col<-function(x,n){
-  matrix(rep(x,each=n), ncol=n, byrow=TRUE)
-}
-
 
 #####x:vector，sigma:double#####
 
@@ -43,7 +36,7 @@ prox_L2<- function(x,sigma){
 
 ######UPDATA B#################
 
-update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old,individual_time,inversecov){
+update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old){
   m <- nrow(index)
   p <- nrow(V)
   B_new <- matrix(nrow=p,ncol=n)
@@ -52,8 +45,7 @@ update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old,individual
   eyemat_p <- diag(p)
   onemat_n <- ones(n)
   AtA <- kronecker(n*eyemat_n - onemat_n,eyemat_p)
-  GHlist <- Grad_L(B_old,X,y,individual_time,inversecov)
-  Hs <- diag(GHlist[[2]])
+  Hs <- Hs(B_old,X,y)
   invmat <- solve(-Hs+gamma1*diagD+theta*AtA)
   lv <- rep(0,n*p)
   for (l in 1:m){
@@ -66,7 +58,7 @@ update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old,individual
     Alt <- kronecker(e1-e2,eyemat_p)
     lv <- lv + Alt%*%V_tilde[,l]
   }
-  Grad_L <- GHlist[[1]]
+  Grad_L <- Grad_L(B_old,X,y)
   rhs <- Grad_L-t(as.vector(B_old)%*%Hs)+theta*lv
   b_new <- invmat%*%rhs
   B_new <- matrix(b_new,nrow=p,ncol=n)
@@ -76,122 +68,71 @@ update_B <- function(diagD,V,Lambda,n,gamma1,index,theta,X,y,Hs,B_old,individual
 #####calculate the gradient of beta############################
 
 
-
-Pupbeta <- function(B_old,X,y,individual_time,subject){
-  trydata <- data.frame(exp(X%*%B_old),y,individual_time,X)
-  n1<- ncol(exp(X%*%B_old))
-  n2 <- ncol(y)
-  n3 <- ncol(X)
-  sub_trydata <- subset(trydata,individual==subject)
-  pupbeta <- matrix(nrow=n1*n3,ncol=0)
-  for(i in 1:length(sub_trydata$time)){
-    yi0 <- sum(sub_trydata[i,(n1+1):(n1+n2)])
-    alphasum <- rowSums(sub_trydata[i,1:n1])
-    alphaij <- t(sub_trydata[i,1:n1])
-    a<- alphaij/alphasum
-    Aij <- kronecker(yi0*(diag(c(a))-a%*%t(a)),t(sub_trydata[i,(n1+n2+3):(n1+n2+n3+2)]))
-    pupbeta <- cbind(pupbeta,Aij)
+Grad_L <- function(B_old,X,y){
+  Grad_l<- rep(0,nrow(B_old)*ncol(B_old))
+  for(i in 1:nrow(X)){
+    alphasum <- rowSums(exp(X[i,]%*%B_old))
+    ysum <- sum(y[i,])
+    Grad_l <- Grad_l +as.vector(kronecker(diag(rep(1,ncol(B_old))),X[i,])%*%(as.matrix(y[i,],ncol=1)-t((exp(X[i,]%*%B_old))/alphasum*ysum)))*
+      (1+alphasum)/(ysum+alphasum)
     
     
   }
-  return(pupbeta)
-  
+  return(Grad_l)
 }
-
-QIJ <- function(B_old,X,y,individual_time,subject){
-  trydata <- data.frame(exp(X%*%B_old),y,individual_time,X)
-  n1<- ncol(exp(X%*%B_old))
-  n2 <- ncol(y)
-  n3 <- ncol(X)
-  qij <- matrix(nrow=n1*n3,ncol=0)
-  sub_trydata <- subset(trydata,individual==subject)
-  for(i in 1:length(sub_trydata$time)){
-    yi0 <- sum(sub_trydata[i,(n1+1):(n1+n2)])
-    alphasum <- rowSums(sub_trydata[i,1:n1])
-    alphaij <- t(sub_trydata[i,1:n1])
-    a <- alphaij/alphasum
-    Qij <- kronecker(yi0*(diag(rep(1,n1))-2*diag(c(a)))%*%(diag(c(a))-a%*%t(a)),t((sub_trydata[i,(n1+n2+3):(n1+n2+n3+2)])^2))
-    qij <- cbind(qij ,Qij)
-  }
-  return(qij)
-}
-
-sub_estimate_cov<- function(trydata,subject,time1,time2,n1,n2){
-  s1 <- subset(trydata,time==time1)$individual
-  s2 <- subset(trydata,time==time2)$individual
-  a <- intersect(s1,s2)
-  sub_codata1 <- subset(trydata,individual%in%a&time==time1)
-  sub_codata2 <- subset(trydata,individual%in%a&time==time2)
-  expectmean1 <- rep.row(colSums(sub_codata1[,(1+n1):(n1+n2)] )/length(a),length(a))
-  expectmean2 <- rep.row(colSums(sub_codata2[,(1+n1):(n1+n2)] )/length(a),length(a))
-  
-  subv <- t(as.matrix(sub_codata1[,(1+n1):(n1+n2)]-expectmean1))%*%as.matrix(sub_codata2[,(1+n1):(n1+n2)]-expectmean2)/length(a)
-  return(subv)
-}
-
-
-estimate_cov <- function(B_old,X,y,individual_time,subject){
-  trydata <- data.frame(exp(X%*%B_old),y,individual_time,X)
-  n1<- ncol(exp(X%*%B_old))
-  n2 <- ncol(y)
-  n3 <- ncol(X)
-  sub_trydata <- subset(trydata,individual==subject)
-  time <- sub_trydata$time
-  es_cov_time1<- matrix(nrow=n1*length(time),ncol=0)
-
-  for(time1 in time){
-    es_cov_time2<- matrix(nrow=0,ncol=n1)
-    for(time2 in time){
-      es_cov_time2 <- rbind(es_cov_time2,sub_estimate_cov(trydata,subject,time1,time2,n1,n2))
-    }
-    
-    es_cov_time1<- cbind(es_cov_time1,es_cov_time2)
-  }
-  return(ginv(es_cov_time1))
-  
-  
-  
-}
-
-
-
-Grad_L<- function(B_old,X,y,individual_time,inversecov){
-  trydata <- data.frame(exp(X%*%B_old),y,individual_time,X)
-  n1<- ncol(exp(X%*%B_old))
-  n2 <- ncol(y)
-  n3 <- ncol(X)
-  Grad_l<- rep(0,n1*n3)
-  hessian <- rep(0,n1*n3)
-  for(subject in unique(trydata$individual)){
-    subjectdata <- subset(trydata,individual==subject)
-    pupbeta <- Pupbeta(B_old,X,y,individual_time,subject)
-    #inversecov <- estimate_cov(B_old,X,y,individual_time,subject)
-    expecti <-  subjectdata[,1:n1]/rowSums(subjectdata[,1:n1])*rowSums( subjectdata[,(1+n1):(n1+n2)])
-    yiminiui <- matrix(t(subjectdata[,(1+n1):(n1+n2)]-expecti),ncol=1)
-    Grad_l<- Grad_l+pupbeta%*%inversecov%*%yiminiui
-    Qij<- QIJ(B_old,X,y,individual_time,subject)
-    hessian <-hessian- diag(pupbeta%*%inversecov%*%t(pupbeta))+as.vector(t(yiminiui)%*%inversecov%*%t(Qij))
-    
-    
-  }
-  hessian[which(hessian>-0.01)]<- -0.01
-  Hs <- diag(hessian,nrow=p*n,ncol = p*n)
-  ghlist <- list(as.vector(Grad_l),hessian)
-  return(ghlist)
-}
-
-
-
-
-
+Grad_L(B_old,X,y)
+ginv
+atry<- sample(1000:2000,12)
+ginv(diag(atry/sum(atry))-matrix(atry/sum(atry),ncol=1)%*%matrix(atry/sum(atry),nrow=1))/20000/(20000+sum(atry))*(1+sum(atry))
 #########calculate the hessian of the beta###########################
 #######################################################################
 
 
 
+Hs_nodiag <-function(B_old,X,y){
+  p <- nrow(B_old)
+  n <- ncol(B_old)
+  Hessian <- matrix(0,nrow=n*p,ncol=n*p)
+  
+  for(i in 1:nrow(X)){
+    alphasum <- rowSums(exp(X[i,]%*%B_old))
+    ysum <- sum(y[i,])
+    alphaij <- t(exp(X[i,]%*%B_old))
+    yminusu <- t((exp(X[i,]%*%B_old))/alphasum*ysum)
+    a<- alphaij/alphasum
+    Diaga <- diag(as.vector(a))
+    
+    
+    
+    Hessian<-Hessian+kronecker((ysum-1)/((alphasum+ysum)^2)*alphaij%*%t(yminusu)-(1+alphasum)*ysum/(alphasum+ysum)*(Diaga-a%*%t(a)),X[i,]%*%t(X[i,]))
+  }
+  
+  return(Hessian)
+}
 
 
 
+Hs <-function(B_old,X,y){
+  p <- nrow(B_old)
+  n <- ncol(B_old)
+  Hessian <- matrix(0,nrow=n*p,ncol=n*p)
+  
+  for(i in 1:nrow(X)){
+    alphasum <- rowSums(exp(X[i,]%*%B_old))
+    ysum <- sum(y[i,])
+    alphaij <- t(exp(X[i,]%*%B_old))
+    yminusu <- t((exp(X[i,]%*%B_old))/alphasum*ysum)
+    a<- alphaij/alphasum
+    Diaga <- diag(as.vector(a))
+    
+    Hessian<-Hessian+kronecker((ysum-1)/((alphasum+ysum)^2)*alphaij%*%t(yminusu)-(1+alphasum)*ysum/(alphasum+ysum)*(Diaga-a%*%t(a)),X[i,]%*%t(X[i,]))
+  }
+  Hessian_diag<- diag(Hessian)
+  Hessian_diag[which(Hessian_diag>-1)]<- -1
+  Hs <- diag(Hessian_diag,nrow=p*n,ncol = p*n)
+  
+  return(Hs)
+}
 
 
 ##########calculate the initial beta###########################
@@ -337,7 +278,7 @@ residual_dual <- function(V,V_old,index,n,theta){
 }
 
 #######ADMM###########
-prclust_admm <- function(X,y,diagD,B_0,index,gamma1,gamma2,theta,tau,n,p,max_iter,eps_abs,eps_rel,individual_time,inversecov){
+prclust_admm <- function(X,y,diagD,B_0,index,gamma1,gamma2,theta,tau,n,p,max_iter,eps_abs,eps_rel){
   m <- nrow(index)
   V <- zeros(p,m)
   Lambda<- zeros(p,m)
@@ -348,7 +289,7 @@ prclust_admm <- function(X,y,diagD,B_0,index,gamma1,gamma2,theta,tau,n,p,max_ite
     V_old <- V
     Lambda_old <- Lambda
     B_old <- B_new
-    B_new <- update_B(X=X, diagD=diagD, y=y, V=V_old, Lambda=Lambda_old, n=n, gamma1=gamma1, index=index, theta=theta,Hs=Hs,B_old=B_new,individual_time,inversecov)
+    B_new <- update_B(X=X, diagD=diagD, y=y, V=V_old, Lambda=Lambda_old, n=n, gamma1=gamma1, index=index, theta=theta,Hs=Hs,B_old=B_new)
     V <- update_V(B=B_new, Lambda=Lambda_old, gamma2=gamma2, theta=theta, tau=tau, index=index)
     Lambda <- update_Lambda(Lambda=Lambda_old,B=B_new,V=V,theta=theta,index=index)
     rp <- residual_primal(B=B_new,V= V, index=index)
@@ -359,7 +300,6 @@ prclust_admm <- function(X,y,diagD,B_0,index,gamma1,gamma2,theta,tau,n,p,max_ite
       break
     }
     iter <- iter +1
-    print(iter)
   }
   if (iter>max_iter){
     iter <- max_iter
